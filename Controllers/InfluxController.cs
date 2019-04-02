@@ -2,8 +2,10 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using InfluxWeb.Models;
 using InfluxWeb.Services;
 using Microsoft.AspNetCore.Mvc;
+using Vibrant.InfluxDB.Client;
 
 namespace InfluxWeb.Controllers
 {
@@ -17,36 +19,27 @@ namespace InfluxWeb.Controllers
             _influxDb = influxDb;
         }
 
-        [Route("Dashboard")]
-        public string Index()
-        {
-            return "This is my <b>default</b> action...";
-        }
-
-        // GET api/values
         [Route("test")]
         public ActionResult<IEnumerable<string>> Get()
-                {
-            _influxDb.Save();
-
-            return new string[] {_influxDb.Now.ToString(), "value2"};
-        }
-
-        // GET api/values/5
-        [HttpGet("{id}")]
-        public ActionResult<string> Get(int id)
         {
-            return "value";
+            _influxDb.Save();
+            return new string[] {"test"};
         }
 
-        // POST api/values
+        [Route("measurement/{measurementName}")]
+        public ActionResult<IEnumerable<string>> GetMeasurement(string measurementName)
+        {
+            var t = _influxDb.ReadMeasurement(measurementName);
+       
+            return t.ToString().Split();
+        }
+
         [HttpPost]
         public void Post([FromBody] string value)
         {
             _influxDb.Save();
         }
 
-        // PUT api/values/5
         [HttpPut("{id}")]
         public void Put(int id, [FromBody] string value)
         {

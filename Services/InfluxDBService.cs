@@ -1,25 +1,24 @@
 using System;
+using System.Configuration;
 using System.Threading.Tasks;
 using InfluxWeb.Models;
+using InfluxWeb.Settings;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Protocols;
 using Vibrant.InfluxDB.Client;
 
 namespace InfluxWeb.Services
 {
     public class InfluxDbService : IInfluxDB
     {
-        private static async Task MainAsync()
+        private AppSettings AppSettings { set; get; }
+
+        public InfluxDbService(IOptions<AppSettings> settings)
         {
-            // TODO: get params from env files
-            const string influxHost = "http://localhost:8086";
-            const string databaseName = "water_info";
-
-            var client = new InfluxClient(new Uri(influxHost));
-
-
-            await Should_Write_Typed_Rows_To_Database(databaseName, client);
+            AppSettings = settings.Value;
         }
 
-        public static async Task Should_Write_Typed_Rows_To_Database(string db, InfluxClient client)
+        private static async Task ShouldWriteTypedRowsToDatabase(string db, InfluxClient client)
         {
             var infos = CreateTypedRowsStartingAt(new DateTime(2010, 1, 1, 1, 1, 1, DateTimeKind.Utc), 500);
             await client.WriteAsync(db, "myMeasurementName", infos);
@@ -46,12 +45,40 @@ namespace InfluxWeb.Services
             return infos;
         }
 
-        public DateTime Now { get; }
-
-        public void Save()
+        private async Task<WaterInfo[]> ShouldQueryTypedData(string db, InfluxClient client,
+            string measurementName)
         {
-            //TODO: change this
-            MainAsync();
+            var resultSet = await client.ReadAsync<WaterInfo>(db, "SELECT * FROM " + measurementName);
+
+            // resultSet will contain 1 result in the Results collection (or multiple if you execute multiple queries at once)
+            var result = resultSet.Results[0];
+
+            // result will contain 1 series in the Series collection (or potentially multiple if you specify a GROUP BY clause)
+            var series = result.Series[0].Rows.ToArray();
+
+            // series.Rows will be the list of ComputerInfo that you queried for
+         
+            return series;
+        }
+
+        public async Task<WaterInfo[]> ReadMeasurement(string measurementName)
+        {
+            string db = AppSettings.InfluxDatabase;
+            string host = AppSettings.InfluxHostName;
+
+            var client = new InfluxClient(new Uri(host));
+
+            return await ShouldQueryTypedData(db, client, measurementName);
+        }
+
+        public async void Save()
+        {
+            string db = AppSettings.InfluxDatabase;
+            string host = AppSettings.InfluxHostName;
+            
+            var client = new InfluxClient(new Uri(host));
+
+            await ShouldWriteTypedRowsToDatabase(db, client);
         }
     }
 }
