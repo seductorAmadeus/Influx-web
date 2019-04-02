@@ -19,25 +19,17 @@ namespace InfluxWeb.Controllers
             _influxDb = influxDb;
         }
 
-        [Route("test")]
-        public ActionResult<IEnumerable<string>> Get()
+        [Route("measurement/{measurementName}")]
+        public string GetMeasurement(string measurementName)
         {
-            _influxDb.Save();
-            return new string[] {"test"};
+            return _influxDb.ReadMeasurement(measurementName).Result;
         }
 
         [Route("measurement/{measurementName}")]
-        public ActionResult<IEnumerable<string>> GetMeasurement(string measurementName)
-        {
-            var t = _influxDb.ReadMeasurement(measurementName);
-       
-            return t.ToString().Split();
-        }
-
         [HttpPost]
-        public void Post([FromBody] string value)
+        public void Post([FromBody] string value, string measurementName)
         {
-            _influxDb.Save();
+            _influxDb.Save(value, measurementName);
         }
 
         [HttpPut("{id}")]

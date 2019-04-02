@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Configuration;
+using System.IO;
 using System.Threading.Tasks;
+using System.Xml.Serialization;
 using InfluxWeb.Models;
 using InfluxWeb.Settings;
 using Microsoft.Extensions.Options;
@@ -18,10 +21,10 @@ namespace InfluxWeb.Services
             AppSettings = settings.Value;
         }
 
-        private static async Task ShouldWriteTypedRowsToDatabase(string db, InfluxClient client)
+        private static async Task ShouldWriteTypedRowsToDatabase(string db, InfluxClient client, string measurementName,
+            IEnumerable<WaterInfo> waterInfos)
         {
-            var infos = CreateTypedRowsStartingAt(new DateTime(2010, 1, 1, 1, 1, 1, DateTimeKind.Utc), 500);
-            await client.WriteAsync(db, "myMeasurementName", infos);
+            await client.WriteAsync(db, measurementName, waterInfos);
         }
 
         private static WaterInfo[] CreateTypedRowsStartingAt(DateTime start, int rows)
@@ -45,7 +48,7 @@ namespace InfluxWeb.Services
             return infos;
         }
 
-        private async Task<WaterInfo[]> ShouldQueryTypedData(string db, InfluxClient client,
+        private async Task<List<WaterInfo>> ShouldQueryTypedData(string db, InfluxClient client,
             string measurementName)
         {
             var resultSet = await client.ReadAsync<WaterInfo>(db, "SELECT * FROM " + measurementName);
@@ -54,31 +57,40 @@ namespace InfluxWeb.Services
             var result = resultSet.Results[0];
 
             // result will contain 1 series in the Series collection (or potentially multiple if you specify a GROUP BY clause)
-            var series = result.Series[0].Rows.ToArray();
+            var series = result.Series[0].Rows;
 
-            // series.Rows will be the list of ComputerInfo that you queried for
-         
             return series;
         }
 
-        public async Task<WaterInfo[]> ReadMeasurement(string measurementName)
+        public async Task<string> ReadMeasurement(string measurementName)
         {
             string db = AppSettings.InfluxDatabase;
             string host = AppSettings.InfluxHostName;
 
             var client = new InfluxClient(new Uri(host));
-
-            return await ShouldQueryTypedData(db, client, measurementName);
+            var t = await ShouldQueryTypedData(db, client, measurementName);
+            StringWriter stringWriter = new StringWriter();
+            XmlSerializer xs = new XmlSerializer(t.GetType());
+            xs.Serialize(stringWriter, t);
+            var test = stringWriter.ToString();
+            return test;
         }
 
-        public async void Save()
+        public async void Save(string value, string measurementName)
         {
             string db = AppSettings.InfluxDatabase;
             string host = AppSettings.InfluxHostName;
-            
+
             var client = new InfluxClient(new Uri(host));
 
-            await ShouldWriteTypedRowsToDatabase(db, client);
+            await ShouldWriteTypedRowsToDatabase(db, client, measurementName, DataDeserialize(value));
+        }
+
+        public static List<WaterInfo> DataDeserialize(string data)
+        {
+            XmlSerializer xs = new XmlSerializer(typeof(List<WaterInfo>));
+            List<WaterInfo> newList = (List<WaterInfo>) xs.Deserialize(new StringReader(data));
+            return newList;
         }
     }
 }
